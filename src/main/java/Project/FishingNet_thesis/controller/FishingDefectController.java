@@ -41,9 +41,11 @@ public class FishingDefectController {
     }
 
     @PostMapping("/upload-image")
-    public APIResponse uploadFishingDefect(@RequestParam("file") MultipartFile file, @RequestParam("filename") String filename) {
+    public APIResponse uploadFishingDefect(@RequestParam("file") MultipartFile file) {
         APIResponse res = new APIResponse();
         try {
+            String uuid = UUID.randomUUID().toString();
+            String filename = uuid;
             String directory = System.getProperty("user.dir") + "/imageDB";
             String filePath = Paths.get(directory, filename + ".jpg").toString();
 
@@ -61,7 +63,8 @@ public class FishingDefectController {
             File newFile = new File(filePath);
 
             FishingDefect fishingDefect = new FishingDefect();
-            fishingDefect.setId(UUID.randomUUID().toString());
+
+            fishingDefect.setId(uuid);
             fishingDefect.setTimestamp(new Date().toString());
             fishingDefect.setFilename(filename);
 
@@ -121,6 +124,7 @@ public class FishingDefectController {
     httpClient.close();
 }
 
+
     @GetMapping("/get_dataById/{id}")
     public FishingDefect getDataById(@PathVariable String id) {
         FishingDefect fishingDefect = fishingDefectRepository.findById(id).orElse(null);
@@ -136,5 +140,4 @@ public class FishingDefectController {
         }
         return fishingDefect;
     }
-
 }
