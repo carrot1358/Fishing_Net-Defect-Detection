@@ -12,4 +12,5 @@ public class FishingDefect {
     private String filename;
     private String image;
     private String timestamp;
+    private boolean ismanaged;
 }
