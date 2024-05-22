@@ -1,5 +1,7 @@
 package Project.FishingNet_thesis.controller;
 
+import Project.FishingNet_thesis.service.CountOfdefectRepository;
+import Project.FishingNet_thesis.table.CountOfdefect;
 import Project.FishingNet_thesis.websocket.handler.MyWebSocketHandler;
 import Project.FishingNet_thesis.service.FishingDefectRepository;
 import Project.FishingNet_thesis.table.FishingDefect;
@@ -18,26 +20,80 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import java.io.File;
 import java.io.FileInputStream;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.IOException;
-import java.util.Base64;
 
 @RestController
 @RequestMapping("/api/fishing-defect")
 @CrossOrigin(origins = "*")
 public class FishingDefectController {
+
     private final MyWebSocketHandler myWebSocketHandler;
     private final FishingDefectRepository fishingDefectRepository;
+    private final CountOfdefectRepository countOfdefectRepository;
 
     @Autowired
-    public FishingDefectController(MyWebSocketHandler myWebSocketHandler, FishingDefectRepository fishingDefectRepository) {
+    public FishingDefectController(MyWebSocketHandler myWebSocketHandler, FishingDefectRepository fishingDefectRepository, CountOfdefectRepository countOfdefectRepository) {
         this.myWebSocketHandler = myWebSocketHandler;
         this.fishingDefectRepository = fishingDefectRepository;
+        this.countOfdefectRepository = countOfdefectRepository;
+    }
+
+    private void increaseDefectCount(Date date) {
+        date = new Date(date.getYear(), date.getMonth(), 1);
+        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
+        if (countOfdefect == null) {
+            countOfdefect = new CountOfdefect();
+            countOfdefect.setDate(date);
+            countOfdefect.setDefectCount(1);
+        } else {
+            countOfdefect.setDefectCount(countOfdefect.getDefectCount() + 1);
+        }
+        countOfdefectRepository.save(countOfdefect);
+    }
+    private void increaseActivateCount(Date date) {
+        date = new Date(date.getYear(), date.getMonth(), 1);
+        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
+        if (countOfdefect == null) {
+            countOfdefect = new CountOfdefect();
+            countOfdefect.setDate(date);
+            countOfdefect.setActivateCount(1);
+        } else {
+            countOfdefect.setActivateCount(countOfdefect.getActivateCount() + 1);
+        }
+        countOfdefectRepository.save(countOfdefect);
+    }
+    private void increaseDeactivateCount(Date date) {
+        date = new Date(date.getYear(), date.getMonth(), 1);
+        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
+        if (countOfdefect == null) {
+            countOfdefect = new CountOfdefect();
+            countOfdefect.setDate(date);
+            countOfdefect.setDeactivateCount(1);
+        } else {
+            countOfdefect.setDeactivateCount(countOfdefect.getDeactivateCount() + 1);
+        }
+        countOfdefectRepository.save(countOfdefect);
+    }
+    private void sendToLineNotify(String lineNotifyToken, String message, File file) throws IOException {
+        String lineNotifyApiUrl = "https://notify-api.line.me/api/notify";
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        HttpPost httpPost = new HttpPost(lineNotifyApiUrl);
+        httpPost.addHeader("Authorization", "Bearer " + lineNotifyToken);
+
+        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+        builder.addTextBody("message", message);
+        if (file != null) {
+            builder.addBinaryBody("imageFile", new FileInputStream(file), ContentType.create("image/jpeg"), file.getName());
+        }
+        org.apache.http.HttpEntity multipart = builder.build();
+        httpPost.setEntity(multipart);
+
+//        CloseableHttpResponse response = httpClient.execute(httpPost);
+        httpClient.close();
     }
 
     @PostMapping("/upload-image")
@@ -62,9 +118,10 @@ public class FishingDefectController {
             File newFile = new File(filePath);
 
             FishingDefect fishingDefect = new FishingDefect();
-
+            Date currentDate = new Date();
+            increaseDefectCount(currentDate);
             fishingDefect.setId(uuid);
-            fishingDefect.setTimestamp(new Date().toString());
+            fishingDefect.setTimestamp(currentDate);
             fishingDefect.setFilename(uuid);
             fishingDefect.setIsmanaged(false);
 
@@ -80,13 +137,13 @@ public class FishingDefectController {
             String json = mapper.writeValueAsString(fishingDefect);
 
             // Send message and image to Line Notify
-            String lineNotifyToken = "XLkCg5xlhohfmIGBX7H0X8sh61bbxkmnTBygvu58DOP";
+            String lineNotifyToken = "5sOmbqMoui5pDCdI3pAxFGV5z88sGuVbn17ArYOEcJ0";
             String message = "New fishingNet defect uploaded: ";
             sendToLineNotify(lineNotifyToken, message, newFile);
 
             // Create URLs for "Activate" and "Deactivate" messages
-            String activateUrl = "http://yourserver.com/api/fishing-defect/activate/?id=" + uuid;
-            String deactivateUrl = "http://yourserver.com/api/fishing-defect/deactivate/?id=" + uuid;
+            String activateUrl = "http://yourserver.com/api/fishing-defect/activate?id=" + uuid;
+            String deactivateUrl = "http://yourserver.com/api/fishing-defect/deactivate?id=" + uuid;
 
             // Send URLs to Line Notify
             sendToLineNotify(lineNotifyToken, "Activate URL: " + activateUrl, null);
@@ -106,16 +163,37 @@ public class FishingDefectController {
         return res;
     }
 
+    // Remove all data for debugging purposes
+    @PostMapping("/removeAll-data-debug")
+    public APIResponse removeAllData() {
+        APIResponse res = new APIResponse();
+        // remove all image in imageDB
+        File file = new File(System.getProperty("user.dir") + "/imageDB");
+        File[] files = file.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                f.delete();
+            }
+        }
+        fishingDefectRepository.deleteAll();
+        res.setStatus(0);
+        res.setMessage("Remove all data Success");
+        return res;
+    }
+
     @GetMapping("/activate")
     public APIResponse activate(@RequestParam("id") String id) {
         APIResponse res = new APIResponse();
         fishingDefectRepository.findById(id).ifPresent(fishingDefect -> {
             if (!fishingDefect.isIsmanaged()) {
+                Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                increaseActivateCount(date);
                 fishingDefect.setIsmanaged(true);
                 fishingDefectRepository.save(fishingDefect);
-                // send to websocket "message": "Activated" as json
                 String Message = "{" +
-                        "\"message\": \"Activated\"" +
+                        "\"message\": \"Activated\"," +
+                        "\"id_image\": \"" + id + "\"," +
+                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -124,10 +202,22 @@ public class FishingDefectController {
                     }
                 }
                 res.setStatus(0);
-                res.setMessage("Send  \"Activate\"  Success");
+                res.setMessage("Send  Activate  Success");
             } else {
+                String Mesage = "{" +
+                        "\"message\": \"This defect is already been managed.\"," +
+                        "\"id_image\": \"" + id + "\"," +
+                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "}";
+                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
+                for (WebSocketSession session : sessions) {
+                    if (session != null && session.isOpen()) {
+                        myWebSocketHandler.sendMessage(session, Mesage);
+                    }
+                }
                 res.setStatus(1);
                 res.setMessage("This defect is already been managed.");
+
             }
         });
         return res;
@@ -137,12 +227,15 @@ public class FishingDefectController {
     public APIResponse deactivate(@RequestParam("id") String id) {
         APIResponse res = new APIResponse();
         fishingDefectRepository.findById(id).ifPresent(fishingDefect -> {
-            if (fishingDefect.isIsmanaged()) {
-                fishingDefect.setIsmanaged(false);
+            if (!fishingDefect.isIsmanaged()) {
+                Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                increaseDeactivateCount(date);
+                fishingDefect.setIsmanaged(true);
                 fishingDefectRepository.save(fishingDefect);
-                // send to websocket "message": "Deactivated" as json
                 String Message = "{" +
-                        "\"message\": \"Deactivated\"" +
+                        "\"message\": \"Deactivated\"," +
+                        "\"id_image\": \"" + id + "\"," +
+                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -151,10 +244,22 @@ public class FishingDefectController {
                     }
                 }
                 res.setStatus(0);
-                res.setMessage("Send \"Deactivate\" Success");
+                res.setMessage("Send  Deactivated  Success");
             } else {
+                String Mesage = "{" +
+                        "\"message\": \"This defect is already been managed.\"," +
+                        "\"id_image\": \"" + id + "\"," +
+                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "}";
+                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
+                for (WebSocketSession session : sessions) {
+                    if (session != null && session.isOpen()) {
+                        myWebSocketHandler.sendMessage(session, Mesage);
+                    }
+                }
                 res.setStatus(1);
-                res.setMessage("This defect is already been deactivated.");
+                res.setMessage("This defect is already been managed.");
+
             }
         });
         return res;
@@ -177,21 +282,26 @@ public class FishingDefectController {
         return fishingDefect;
     }
 
-    private void sendToLineNotify(String lineNotifyToken, String message, File file) throws IOException {
-        String lineNotifyApiUrl = "https://notify-api.line.me/api/notify";
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpPost httpPost = new HttpPost(lineNotifyApiUrl);
-        httpPost.addHeader("Authorization", "Bearer " + lineNotifyToken);
-
-        MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-        builder.addTextBody("message", message);
-        if (file != null) {
-            builder.addBinaryBody("imageFile", new FileInputStream(file), ContentType.create("image/jpeg"), file.getName());
+    @GetMapping("/get_alldata")
+    public APIResponse getAllData() {
+        APIResponse res = new APIResponse();
+        List<FishingDefect> fishingDefectdata = fishingDefectRepository.findAll();
+        for (FishingDefect fishingDefect : fishingDefectdata) {
+            try {
+                Path path = Paths.get(fishingDefect.getImage());
+                byte[] fileContent = Files.readAllBytes(path);
+                String encodedString = Base64.getEncoder().encodeToString(fileContent);
+                fishingDefect.setImage(encodedString);
+            } catch (IOException e) {
+                //noinspection CallToPrintStackTrace
+                e.printStackTrace();
+            }
         }
-        org.apache.http.HttpEntity multipart = builder.build();
-        httpPost.setEntity(multipart);
-
-//        CloseableHttpResponse response = httpClient.execute(httpPost);
-        httpClient.close();
+        res.setStatus(0);
+        res.setMessage("Success");
+        res.setData(fishingDefectdata);
+        return res;
     }
+
+
 }
