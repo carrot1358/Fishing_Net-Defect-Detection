@@ -42,7 +42,7 @@ public class FishingDefectController {
         this.countOfdefectRepository = countOfdefectRepository;
     }
 
-    private void increaseDefectCount(Date date) {
+    public void increaseDefectCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
         CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
         if (countOfdefect == null) {
@@ -54,7 +54,7 @@ public class FishingDefectController {
         }
         countOfdefectRepository.save(countOfdefect);
     }
-    private void increaseActivateCount(Date date) {
+    public void increaseActivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
         CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
         if (countOfdefect == null) {
@@ -66,7 +66,7 @@ public class FishingDefectController {
         }
         countOfdefectRepository.save(countOfdefect);
     }
-    private void increaseDeactivateCount(Date date) {
+    public void increaseDeactivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
         CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
         if (countOfdefect == null) {
@@ -163,23 +163,7 @@ public class FishingDefectController {
         return res;
     }
 
-    // Remove all data for debugging purposes
-    @PostMapping("/removeAll-data-debug")
-    public APIResponse removeAllData() {
-        APIResponse res = new APIResponse();
-        // remove all image in imageDB
-        File file = new File(System.getProperty("user.dir") + "/imageDB");
-        File[] files = file.listFiles();
-        if (files != null) {
-            for (File f : files) {
-                f.delete();
-            }
-        }
-        fishingDefectRepository.deleteAll();
-        res.setStatus(0);
-        res.setMessage("Remove all data Success");
-        return res;
-    }
+
 
     @GetMapping("/activate")
     public APIResponse activate(@RequestParam("id") String id) {
@@ -284,6 +268,7 @@ public class FishingDefectController {
 
     @GetMapping("/get_alldata")
     public APIResponse getAllData() {
+        int index = 0;
         APIResponse res = new APIResponse();
         List<FishingDefect> fishingDefectdata = fishingDefectRepository.findAll();
         for (FishingDefect fishingDefect : fishingDefectdata) {
