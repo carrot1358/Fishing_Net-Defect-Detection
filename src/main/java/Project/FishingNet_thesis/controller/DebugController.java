@@ -1,15 +1,13 @@
 package Project.FishingNet_thesis.controller;
 
-import Project.FishingNet_thesis.service.CountOfdefectRepository;
-import Project.FishingNet_thesis.service.FishingDefectRepository;
-import Project.FishingNet_thesis.table.CountOfdefect;
-import Project.FishingNet_thesis.table.FishingDefect;
-import Project.FishingNet_thesis.table.debug.RandomDataRequest;
-import Project.FishingNet_thesis.websocket.handler.MyWebSocketHandler;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import Project.FishingNet_thesis.payload.response.APIResponse;
+import Project.FishingNet_thesis.repository.DefectStatisticsRepository;
+import Project.FishingNet_thesis.repository.FishingDefectRepository;
+import Project.FishingNet_thesis.models.FishingDefectDocument;
+import Project.FishingNet_thesis.payload.debug.Line_request;
+import Project.FishingNet_thesis.payload.debug.RandomDataRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.socket.WebSocketSession;
 
 import java.io.File;
 import java.io.InputStream;
@@ -17,11 +15,9 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
-import java.util.Date;
 import java.util.GregorianCalendar;
 
 @RestController
@@ -31,7 +27,7 @@ public class DebugController {
     @Autowired
     FishingDefectRepository fishingDefectRepository;
     @Autowired
-    CountOfdefectRepository countOfdefectRepository;
+    DefectStatisticsRepository defectStatisticsRepository;
     @Autowired
     FishingDefectController fishingDefectController;
 
@@ -47,6 +43,7 @@ public class DebugController {
             }
         }
         fishingDefectRepository.deleteAll();
+        defectStatisticsRepository.deleteAll();
         res.setStatus(0);
         res.setMessage("Remove all data Success");
         return res;
@@ -80,28 +77,34 @@ public class DebugController {
 
                 // Generate a random date
                 // Set the start date (e.g., year 2000)
-                gc.set(randomDataRequest.getYear(), randomDataRequest.getMonth(), randomDataRequest.getDay());
+                gc.set(randomDataRequest.getYear(),
+                        randomDataRequest.getMonth(),
+                        randomDataRequest.getDay());
                 long startDate = gc.getTime().getTime();
                 // Set the end date (e.g., current date)
                 Date currentDate = new Date();
                 gc.setTime(currentDate);
                 long endDate = gc.getTime().getTime();
-                    // Generate a random long value between the start and end dates
+                // Generate a random long value between the start and end dates
                 long randomDate = startDate + (long) (random.nextDouble() * (endDate - startDate));
-                    // Create a new date using the random long value
+                // Create a new date using the random long value
                 Date randomDateResult = new Date(randomDate);
+                System.out.println("Random data ...");
+                System.out.println("Start Date: " + startDate);
+                System.out.println("End Date: " + endDate);
 
-                FishingDefect fishingDefect = new FishingDefect();
-                fishingDefectController.increaseDefectCount(randomDateResult);
-                fishingDefect.setId(uuid);
-                fishingDefect.setTimestamp(randomDateResult);
-                fishingDefect.setFilename(uuid);
-                fishingDefect.setIsmanaged(random.nextBoolean());
+                System.out.println("Random Date: " + randomDateResult);
+                FishingDefectDocument fishingDefectDocument = new FishingDefectDocument();
+                fishingDefectController.increaseDefectCount(randomDateResult, uuid);
+                fishingDefectDocument.setId(uuid);
+                fishingDefectDocument.setTimestamp(randomDateResult);
+                fishingDefectDocument.setFilename(uuid);
+                fishingDefectDocument.setIsmanaged(random.nextBoolean());
 
                 // Save the file path to the database instead of the Blob
-                fishingDefect.setImage(filePath);
+                fishingDefectDocument.setImage(filePath);
 
-                fishingDefectRepository.save(fishingDefect);
+                fishingDefectRepository.save(fishingDefectDocument);
                 count--;
             } catch (Exception e) {
                 res.setStatus(500);
@@ -112,4 +115,19 @@ public class DebugController {
         }
         return res;
     }
+
+    @PostMapping("/Line-send-debug")
+    public APIResponse lineSend(@RequestBody Line_request lineRequest) {
+        APIResponse res = new APIResponse();
+        try {
+            fishingDefectController.sendToLineNotify(lineRequest.getToken(), lineRequest.getMessage(), lineRequest.getImage());
+            res.setStatus(0);
+            res.setMessage("Line send Success");
+        } catch (Exception e) {
+            res.setStatus(500);
+            res.setMessage(e.getMessage());
+        }
+        return res;
+    }
+
 }

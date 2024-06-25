@@ -1,11 +1,13 @@
 package Project.FishingNet_thesis.controller;
 
-import Project.FishingNet_thesis.service.CountOfdefectRepository;
-import Project.FishingNet_thesis.table.CountOfdefect;
-import Project.FishingNet_thesis.websocket.handler.MyWebSocketHandler;
-import Project.FishingNet_thesis.service.FishingDefectRepository;
-import Project.FishingNet_thesis.table.FishingDefect;
+import Project.FishingNet_thesis.payload.response.APIResponse;
+import Project.FishingNet_thesis.repository.DefectStatisticsRepository;
+import Project.FishingNet_thesis.models.DefectStatisticsDocument;
+import Project.FishingNet_thesis.security.service.websocket.handler.MyWebSocketHandler;
+import Project.FishingNet_thesis.repository.FishingDefectRepository;
+import Project.FishingNet_thesis.models.FishingDefectDocument;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -19,6 +21,7 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -26,59 +29,63 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestController
 @RequestMapping("/api/fishing-defect")
-@CrossOrigin(origins = "*")
 public class FishingDefectController {
-
-    private final MyWebSocketHandler myWebSocketHandler;
-    private final FishingDefectRepository fishingDefectRepository;
-    private final CountOfdefectRepository countOfdefectRepository;
+    private static final Logger logger = LoggerFactory.getLogger(FishingDefectController.class);
 
     @Autowired
-    public FishingDefectController(MyWebSocketHandler myWebSocketHandler, FishingDefectRepository fishingDefectRepository, CountOfdefectRepository countOfdefectRepository) {
-        this.myWebSocketHandler = myWebSocketHandler;
-        this.fishingDefectRepository = fishingDefectRepository;
-        this.countOfdefectRepository = countOfdefectRepository;
-    }
+    MyWebSocketHandler myWebSocketHandler;
+    @Autowired
+    FishingDefectRepository fishingDefectRepository;
+    @Autowired
+    DefectStatisticsRepository defectStatisticsRepository;
 
-    public void increaseDefectCount(Date date) {
-        date = new Date(date.getYear(), date.getMonth(), 1);
-        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
-        if (countOfdefect == null) {
-            countOfdefect = new CountOfdefect();
-            countOfdefect.setDate(date);
-            countOfdefect.setDefectCount(1);
+    public void increaseDefectCount(Date date, String id) {
+        //get only year, month, day
+        date = new Date(date.getYear(), date.getMonth(), date.getDate());
+
+        DefectStatisticsDocument defectStatisticsDocument = defectStatisticsRepository.findByDate(date);
+        if (defectStatisticsDocument == null) {
+            defectStatisticsDocument = new DefectStatisticsDocument();
+            defectStatisticsDocument.setDate(date);
+            defectStatisticsDocument.setDefectCount(1);
         } else {
-            countOfdefect.setDefectCount(countOfdefect.getDefectCount() + 1);
+            defectStatisticsDocument.setDefectCount(defectStatisticsDocument.getDefectCount() + 1);
         }
-        countOfdefectRepository.save(countOfdefect);
+        defectStatisticsDocument.addDefect_id(id);
+        defectStatisticsRepository.save(defectStatisticsDocument);
     }
     public void increaseActivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
-        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
-        if (countOfdefect == null) {
-            countOfdefect = new CountOfdefect();
-            countOfdefect.setDate(date);
-            countOfdefect.setActivateCount(1);
+        DefectStatisticsDocument defectStatisticsDocument = defectStatisticsRepository.findByDate(date);
+        if (defectStatisticsDocument == null) {
+            defectStatisticsDocument = new DefectStatisticsDocument();
+            defectStatisticsDocument.setDate(date);
+            defectStatisticsDocument.setActivateCount(1);
         } else {
-            countOfdefect.setActivateCount(countOfdefect.getActivateCount() + 1);
+            defectStatisticsDocument.setActivateCount(defectStatisticsDocument.getActivateCount() + 1);
         }
-        countOfdefectRepository.save(countOfdefect);
+        defectStatisticsRepository.save(defectStatisticsDocument);
     }
     public void increaseDeactivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
-        CountOfdefect countOfdefect = countOfdefectRepository.findByDate(date);
-        if (countOfdefect == null) {
-            countOfdefect = new CountOfdefect();
-            countOfdefect.setDate(date);
-            countOfdefect.setDeactivateCount(1);
+        DefectStatisticsDocument defectStatisticsDocument = defectStatisticsRepository.findByDate(date);
+        if (defectStatisticsDocument == null) {
+            defectStatisticsDocument = new DefectStatisticsDocument();
+            defectStatisticsDocument.setDate(date);
+            defectStatisticsDocument.setDeactivateCount(1);
         } else {
-            countOfdefect.setDeactivateCount(countOfdefect.getDeactivateCount() + 1);
+            defectStatisticsDocument.setDeactivateCount(defectStatisticsDocument.getDeactivateCount() + 1);
         }
-        countOfdefectRepository.save(countOfdefect);
+        defectStatisticsRepository.save(defectStatisticsDocument);
     }
-    private void sendToLineNotify(String lineNotifyToken, String message, File file) throws IOException {
+    public void sendToLineNotify(String lineNotifyToken, String message, File file) {
+        logger.info("sendToLineNotify() called with token: {}, message: {}, file: {}", lineNotifyToken, message, file != null ? file.getName() : "null");
+
         String lineNotifyApiUrl = "https://notify-api.line.me/api/notify";
         CloseableHttpClient httpClient = HttpClients.createDefault();
         HttpPost httpPost = new HttpPost(lineNotifyApiUrl);
@@ -87,13 +94,22 @@ public class FishingDefectController {
         MultipartEntityBuilder builder = MultipartEntityBuilder.create();
         builder.addTextBody("message", message);
         if (file != null) {
-            builder.addBinaryBody("imageFile", new FileInputStream(file), ContentType.create("image/jpeg"), file.getName());
+            try {
+                builder.addBinaryBody("imageFile", new FileInputStream(file), ContentType.create("image/jpeg"), file.getName());
+            } catch (FileNotFoundException e) {
+                logger.error("File not found: {}", file.getName(), e);
+            }
         }
         org.apache.http.HttpEntity multipart = builder.build();
         httpPost.setEntity(multipart);
 
-//        CloseableHttpResponse response = httpClient.execute(httpPost);
-        httpClient.close();
+        try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+            // Log the status of the response
+            logger.info("Response status: {}", response.getStatusLine().getStatusCode());
+            httpClient.close();
+        } catch (IOException e) {
+            logger.error("Error executing HTTP request", e);
+        }
     }
 
     @PostMapping("/upload-image")
@@ -117,33 +133,34 @@ public class FishingDefectController {
             // Use the destination file from now on
             File newFile = new File(filePath);
 
-            FishingDefect fishingDefect = new FishingDefect();
+            FishingDefectDocument fishingDefectDocument = new FishingDefectDocument();
             Date currentDate = new Date();
-            increaseDefectCount(currentDate);
-            fishingDefect.setId(uuid);
-            fishingDefect.setTimestamp(currentDate);
-            fishingDefect.setFilename(uuid);
-            fishingDefect.setIsmanaged(false);
+            increaseDefectCount(currentDate, uuid);
+            fishingDefectDocument.setId(uuid);
+            fishingDefectDocument.setTimestamp(currentDate);
+            fishingDefectDocument.setFilename(uuid);
+            fishingDefectDocument.setIsmanaged(false);
 
             // Save the file path to the database instead of the Blob
-            fishingDefect.setImage(filePath);
+            fishingDefectDocument.setImage(filePath);
 
-            fishingDefectRepository.save(fishingDefect);
+            fishingDefectRepository.save(fishingDefectDocument);
             res.setStatus(200);
             res.setMessage("Success");
 
             // Convert the FishingDefect object to JSON
             ObjectMapper mapper = new ObjectMapper();
-            String json = mapper.writeValueAsString(fishingDefect);
+            String json = mapper.writeValueAsString(fishingDefectDocument);
 
             // Send message and image to Line Notify
-            String lineNotifyToken = "5sOmbqMoui5pDCdI3pAxFGV5z88sGuVbn17ArYOEcJ0";
+            String lineNotifyToken = "XStwsrjVcznoUDuO2eaW2BszxgeRARwWXhGIzlPzDy6";
             String message = "New fishingNet defect uploaded: ";
             sendToLineNotify(lineNotifyToken, message, newFile);
 
             // Create URLs for "Activate" and "Deactivate" messages
             String activateUrl = "http://yourserver.com/api/fishing-defect/activate?id=" + uuid;
             String deactivateUrl = "http://yourserver.com/api/fishing-defect/deactivate?id=" + uuid;
+
 
             // Send URLs to Line Notify
             sendToLineNotify(lineNotifyToken, "Activate URL: " + activateUrl, null);
@@ -163,21 +180,20 @@ public class FishingDefectController {
         return res;
     }
 
-
-
     @GetMapping("/activate")
     public APIResponse activate(@RequestParam("id") String id) {
         APIResponse res = new APIResponse();
-        fishingDefectRepository.findById(id).ifPresent(fishingDefect -> {
-            if (!fishingDefect.isIsmanaged()) {
+        fishingDefectRepository.findById(id).ifPresent(fishingDefectDocument -> {
+            if (!fishingDefectDocument.isIsmanaged()) {
                 Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                fishingDefectDocument.setIsmanaged(true);
+                fishingDefectDocument.setStatus("Activated");
+                fishingDefectRepository.save(fishingDefectDocument);
                 increaseActivateCount(date);
-                fishingDefect.setIsmanaged(true);
-                fishingDefectRepository.save(fishingDefect);
                 String Message = "{" +
                         "\"message\": \"Activated\"," +
                         "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -191,7 +207,7 @@ public class FishingDefectController {
                 String Mesage = "{" +
                         "\"message\": \"This defect is already been managed.\"," +
                         "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -210,16 +226,17 @@ public class FishingDefectController {
     @GetMapping("/deactivate")
     public APIResponse deactivate(@RequestParam("id") String id) {
         APIResponse res = new APIResponse();
-        fishingDefectRepository.findById(id).ifPresent(fishingDefect -> {
-            if (!fishingDefect.isIsmanaged()) {
+        fishingDefectRepository.findById(id).ifPresent(fishingDefectDocument -> {
+            if (!fishingDefectDocument.isIsmanaged()) {
                 Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                fishingDefectDocument.setIsmanaged(true);
+                fishingDefectDocument.setStatus("Deactivated");
+                fishingDefectRepository.save(fishingDefectDocument);
                 increaseDeactivateCount(date);
-                fishingDefect.setIsmanaged(true);
-                fishingDefectRepository.save(fishingDefect);
                 String Message = "{" +
                         "\"message\": \"Deactivated\"," +
                         "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -233,7 +250,7 @@ public class FishingDefectController {
                 String Mesage = "{" +
                         "\"message\": \"This defect is already been managed.\"," +
                         "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefect.getTimestamp() + "\"" +
+                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
                         "}";
                 Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
                 for (WebSocketSession session : sessions) {
@@ -250,33 +267,33 @@ public class FishingDefectController {
     }
 
     @GetMapping("/get_dataById/{id}")
-    public FishingDefect getDataById(@PathVariable String id) {
-        FishingDefect fishingDefect = fishingDefectRepository.findById(id).orElse(null);
-        if (fishingDefect != null) {
+    public FishingDefectDocument getDataById(@PathVariable String id) {
+        FishingDefectDocument fishingDefectDocument = fishingDefectRepository.findById(id).orElse(null);
+        if (fishingDefectDocument != null) {
             try {
-                Path path = Paths.get(fishingDefect.getImage());
+                Path path = Paths.get(fishingDefectDocument.getImage());
                 byte[] fileContent = Files.readAllBytes(path);
                 String encodedString = Base64.getEncoder().encodeToString(fileContent);
-                fishingDefect.setImage(encodedString);
+                fishingDefectDocument.setImage(encodedString);
             } catch (IOException e) {
                 //noinspection CallToPrintStackTrace
                 e.printStackTrace();
             }
         }
-        return fishingDefect;
+        return fishingDefectDocument;
     }
 
     @GetMapping("/get_alldata")
     public APIResponse getAllData() {
         int index = 0;
         APIResponse res = new APIResponse();
-        List<FishingDefect> fishingDefectdata = fishingDefectRepository.findAll();
-        for (FishingDefect fishingDefect : fishingDefectdata) {
+        List<FishingDefectDocument> fishingDefectdatumDocuments = fishingDefectRepository.findAll();
+        for (FishingDefectDocument fishingDefectDocument : fishingDefectdatumDocuments) {
             try {
-                Path path = Paths.get(fishingDefect.getImage());
+                Path path = Paths.get(fishingDefectDocument.getImage());
                 byte[] fileContent = Files.readAllBytes(path);
                 String encodedString = Base64.getEncoder().encodeToString(fileContent);
-                fishingDefect.setImage(encodedString);
+                fishingDefectDocument.setImage(encodedString);
             } catch (IOException e) {
                 //noinspection CallToPrintStackTrace
                 e.printStackTrace();
@@ -284,7 +301,32 @@ public class FishingDefectController {
         }
         res.setStatus(0);
         res.setMessage("Success");
-        res.setData(fishingDefectdata);
+        res.setData(fishingDefectdatumDocuments);
+        return res;
+    }
+
+    @GetMapping("/get_lastdata")
+    public APIResponse getLastData() {
+        APIResponse res = new APIResponse();
+        List<FishingDefectDocument> fishingDefectdatumDocuments = fishingDefectRepository.findAll();
+        if (fishingDefectdatumDocuments.size() > 0) {
+            FishingDefectDocument fishingDefectDocument = fishingDefectdatumDocuments.get(fishingDefectdatumDocuments.size() - 1);
+            try {
+                Path path = Paths.get(fishingDefectDocument.getImage());
+                byte[] fileContent = Files.readAllBytes(path);
+                String encodedString = Base64.getEncoder().encodeToString(fileContent);
+                fishingDefectDocument.setImage(encodedString);
+            } catch (IOException e) {
+                //noinspection CallToPrintStackTrace
+                e.printStackTrace();
+            }
+            res.setStatus(0);
+            res.setMessage("Success");
+            res.setData(fishingDefectDocument);
+        } else {
+            res.setStatus(1);
+            res.setMessage("No data found");
+        }
         return res;
     }
 

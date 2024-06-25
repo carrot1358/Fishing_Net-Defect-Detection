@@ -1,6 +1,6 @@
-package Project.FishingNet_thesis.websocket.config;
+package Project.FishingNet_thesis.security.service.websocket.config;
 
-import Project.FishingNet_thesis.websocket.handler.MyWebSocketHandler;
+import Project.FishingNet_thesis.security.service.websocket.handler.MyWebSocketHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;

@@ -1,4 +1,4 @@
-package Project.FishingNet_thesis.table.debug;
+package Project.FishingNet_thesis.payload.debug;
 
 import lombok.Data;
 import org.springframework.data.mongodb.core.mapping.Document;

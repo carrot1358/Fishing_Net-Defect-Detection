@@ -1,4 +1,4 @@
-package Project.FishingNet_thesis.websocket.handler;
+package Project.FishingNet_thesis.security.service.websocket.handler;
 
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
