@@ -16,6 +16,8 @@ import Project.FishingNet_thesis.models.UserDocument;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
 
@@ -146,7 +148,7 @@ public class UserController {
             // Save the TokenResetDocument object to the database
             tokenResetRepository.save(tokenResetDocument);
 
-            // send an email to the user with the reset link that includes the token
+            // email the user with the reset link that includes the token
             String resetLink = configProperties.getFEbaseUrl() + "/reset-password?token=" + token;
             emailService.sendMail(user.getEmail(), "Password Reset Request",
                     "To reset your password, click the following link: " + resetLink);
@@ -250,25 +252,32 @@ public class UserController {
     }
 
     @GetMapping("/get-image-profile")
-    public APIResponse getImageProfile(@RequestBody String userId) {
-        APIResponse res = new APIResponse();
-        UserDocument user = userRepository.findById(userId).orElse(null);
-        if (user == null) {
-            res.setStatus(400);
-            res.setMessage("Error: User not found!");
-        } else {
-            String directory = System.getProperty("user.dir") + "/imageProfile";
-            String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
-            File file = new File(filePath);
-            if (file.exists()) {
+public APIResponse getImageProfile(@RequestParam String userId) {
+    APIResponse res = new APIResponse();
+    UserDocument user = userRepository.findById(userId).orElse(null);
+    if (user == null) {
+        res.setStatus(400);
+        res.setMessage("Error: User not found!");
+    } else {
+        String directory = System.getProperty("user.dir") + "/imageProfile";
+        String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
+        File file = new File(filePath);
+        if (file.exists()) {
+            try {
+                byte[] fileContent = Files.readAllBytes(file.toPath());
+                String encodedString = Base64.getEncoder().encodeToString(fileContent);
                 res.setStatus(200);
                 res.setMessage("Image profile found!");
-                res.setData(file);
-            } else {
+                res.setData(encodedString);
+            } catch (IOException e) {
                 res.setStatus(400);
-                res.setMessage("Error: Image profile not found!");
+                res.setMessage("Error: " + e.getMessage());
             }
+        } else {
+            res.setStatus(400);
+            res.setMessage("Error: Image profile not found!");
         }
-        return res;
     }
+    return res;
+}
 }
