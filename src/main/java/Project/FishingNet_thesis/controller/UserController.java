@@ -10,10 +10,7 @@ import Project.FishingNet_thesis.repository.RoleRepository;
 import Project.FishingNet_thesis.repository.TokenResetRepository;
 import Project.FishingNet_thesis.repository.UserRepository;
 import Project.FishingNet_thesis.security.service.EmailService.EmailService;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import Project.FishingNet_thesis.models.UserDocument;
 import org.springframework.web.multipart.MultipartFile;
@@ -92,7 +89,7 @@ public class UserController {
     }
 
     @PostMapping("/singin")
-    public APIResponse loginUser(@RequestBody LoginRequest loginRequest, HttpSession session) {
+    public APIResponse loginUser(@RequestBody LoginRequest loginRequest) {
         APIResponse res = new APIResponse();
         if (!userRepository.existsByUsername(loginRequest.getUsername())) {
             res.setStatus(400);
@@ -109,7 +106,6 @@ public class UserController {
                 res.setStatus(200);
                 res.setMessage("Login successfully!");
                 res.setData(user);
-                session.setAttribute("UserSession", user);
             } else {
                 res.setStatus(400);
                 res.setMessage("Error: User not found!");
@@ -119,8 +115,7 @@ public class UserController {
     }
 
     @PostMapping("/logout")
-    public APIResponse logoutUser(HttpSession session) {
-        session.invalidate();
+    public APIResponse logoutUser() {
         APIResponse res = new APIResponse();
         res.setStatus(200);
         res.setMessage("Logout successfully!");
@@ -132,12 +127,12 @@ public class UserController {
         APIResponse res = new APIResponse();
         String email = forgetRequest.getEmail();
         Optional<UserDocument> optionalUser = userRepository.findByEmail(email);
-        if (!optionalUser.isPresent()) {
+        if (optionalUser.isEmpty()) {
             res.setStatus(400);
             res.setMessage("Error: Email does not exist!");
         } else {
             UserDocument user = optionalUser.get();
-            String token = UUID.randomUUID().toString() + userRepository.findByEmail(email).get().getId();
+            String token = UUID.randomUUID() + userRepository.findByEmail(email).get().getId();
             // Set the expiration time for the token
             Calendar cal = Calendar.getInstance(); // creates calendar
             cal.setTime(new Date()); // sets calendar time/date
@@ -159,7 +154,7 @@ public class UserController {
 
             res.setStatus(200);
             res.setMessage("Sent an email to the user with the reset link");
-            res.setData("Expiration Date : " + expirationDate.toString());
+            res.setData("Expiration Date : " + expirationDate);
         }
         return res;
     }
@@ -188,9 +183,9 @@ public class UserController {
     }
 
     @PostMapping("/change-password")
-    public APIResponse changePassword(@RequestBody ChangePasswordRequest changePasswordRequest, HttpSession session) {
+    public APIResponse changePassword(@RequestBody ChangePasswordRequest changePasswordRequest) {
         APIResponse res = new APIResponse();
-        UserDocument user = (UserDocument) session.getAttribute("UserSession");
+        UserDocument user = userRepository.findById(changePasswordRequest.getUserId()).orElse(null);
         if (user == null) {
             res.setStatus(400);
             res.setMessage("Error: User not found!");
@@ -209,9 +204,9 @@ public class UserController {
     }
 
     @PostMapping("/update-profile")
-    public APIResponse updateProfile(@RequestBody UpdateProfileRequest updateProfileRequest, HttpSession session) {
+    public APIResponse updateProfile(@RequestBody UpdateProfileRequest updateProfileRequest) {
         APIResponse res = new APIResponse();
-        UserDocument user = (UserDocument) session.getAttribute("UserSession");
+        UserDocument user = userRepository.findById(updateProfileRequest.getUserId()).orElse(null);
         if (user == null) {
             res.setStatus(400);
             res.setMessage("Error: User not found!");
@@ -230,9 +225,9 @@ public class UserController {
     }
 
     @PostMapping("/update-image-profile")
-    public APIResponse updateImageProfile(@RequestParam("file") MultipartFile file, HttpSession session) {
+    public APIResponse updateImageProfile(@RequestParam("userId") String userId, @RequestParam("imageProfile") MultipartFile imageProfile) {
         APIResponse res = new APIResponse();
-        UserDocument user = (UserDocument) session.getAttribute("UserSession");
+        UserDocument user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             res.setStatus(400);
             res.setMessage("Error: User not found!");
@@ -241,7 +236,7 @@ public class UserController {
                 String directory = System.getProperty("user.dir") + "/imageProfile";
                 String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
                 File dest = new File(filePath);
-                file.transferTo(dest);
+                imageProfile.transferTo(dest);
                 user.setImageProfileName(user.getId() + ".jpg");
                 userRepository.save(user);
                 res.setStatus(200);
@@ -255,24 +250,25 @@ public class UserController {
     }
 
     @GetMapping("/get-image-profile")
-    public APIResponse getImageProfile(HttpSession session) {
+    public APIResponse getImageProfile(@RequestBody String userId) {
         APIResponse res = new APIResponse();
-        UserDocument user = (UserDocument) session.getAttribute("UserSession");
+        UserDocument user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             res.setStatus(400);
             res.setMessage("Error: User not found!");
-        }
-        //encode image to base64 and return it
-        return null;
-    }
-
-    @GetMapping("/get-user-session")
-    public ResponseEntity<UserDocument> getUserSession(HttpSession session) {
-        UserDocument user = (UserDocument) session.getAttribute("UserSession");
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } else {
-            return ResponseEntity.ok(user);
+            String directory = System.getProperty("user.dir") + "/imageProfile";
+            String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
+            File file = new File(filePath);
+            if (file.exists()) {
+                res.setStatus(200);
+                res.setMessage("Image profile found!");
+                res.setData(file);
+            } else {
+                res.setStatus(400);
+                res.setMessage("Error: Image profile not found!");
+            }
         }
+        return res;
     }
 }
