@@ -12,5 +12,7 @@ import org.springframework.stereotype.Component;
 public class ConfigProperties {
     @Value("${app.FEbaseurl}")
     private String FEbaseUrl;
+    @Value("${app.jwtsecret}")
+    private String jwtSecret;
 
 }

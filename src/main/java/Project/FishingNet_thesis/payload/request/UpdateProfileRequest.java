@@ -1,5 +1,6 @@
 package Project.FishingNet_thesis.payload.request;
 
+import jakarta.mail.Multipart;
 import lombok.Data;
 
 @Data

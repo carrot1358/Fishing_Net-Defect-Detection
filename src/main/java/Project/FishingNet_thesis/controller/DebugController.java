@@ -22,7 +22,6 @@ import java.util.GregorianCalendar;
 
 @RestController
 @RequestMapping("/debug")
-@CrossOrigin(origins = "*")
 public class DebugController {
     @Autowired
     FishingDefectRepository fishingDefectRepository;

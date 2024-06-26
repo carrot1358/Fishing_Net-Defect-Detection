@@ -12,6 +12,8 @@ import Project.FishingNet_thesis.repository.UserRepository;
 import Project.FishingNet_thesis.security.service.EmailService.EmailService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import Project.FishingNet_thesis.models.UserDocument;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,12 +49,12 @@ public class UserController {
             res.setMessage("Error: Email is already in use!");
             return res;
         }
-        if(signUpRequest.getUsername().length() < 3 || signUpRequest.getUsername().length() > 20){
+        if (signUpRequest.getUsername().length() < 3 || signUpRequest.getUsername().length() > 20) {
             res.setStatus(400);
             res.setMessage("Error: Username must be between 3 and 20 characters!");
             return res;
         }
-        if(signUpRequest.getPassword().length() < 6 || signUpRequest.getPassword().length() > 40){
+        if (signUpRequest.getPassword().length() < 6 || signUpRequest.getPassword().length() > 40) {
             res.setStatus(400);
             res.setMessage("Error: Password must be between 6 and 40 characters!");
             return res;
@@ -236,7 +238,7 @@ public class UserController {
             res.setMessage("Error: User not found!");
         } else {
             try {
-                String directory = System.getProperty("user.dir") + "/imageDB";
+                String directory = System.getProperty("user.dir") + "/imageProfile";
                 String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
                 File dest = new File(filePath);
                 file.transferTo(dest);
@@ -244,7 +246,7 @@ public class UserController {
                 userRepository.save(user);
                 res.setStatus(200);
                 res.setMessage("Image profile updated successfully!");
-            }catch (Exception e){
+            } catch (Exception e) {
                 res.setStatus(400);
                 res.setMessage("Error: " + e.getMessage());
             }
@@ -261,6 +263,16 @@ public class UserController {
             res.setMessage("Error: User not found!");
         }
         //encode image to base64 and return it
-    return null;
+        return null;
+    }
+
+    @GetMapping("/get-user-session")
+    public ResponseEntity<UserDocument> getUserSession(HttpSession session) {
+        UserDocument user = (UserDocument) session.getAttribute("UserSession");
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } else {
+            return ResponseEntity.ok(user);
+        }
     }
 }
