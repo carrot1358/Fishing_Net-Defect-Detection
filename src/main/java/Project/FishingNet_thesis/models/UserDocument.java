@@ -31,19 +31,22 @@ public class UserDocument {
     @DBRef
     private Set<Role> roles = new HashSet<>();
 
-    public UserDocument(String id,String username, String email, String password) {
+    public UserDocument(String id, String username, String email, String password) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.password = password;
     }
+
     public UserDocument withoutPassword() {
-    UserDocument user = new UserDocument(this.getId(), this.getUsername(), this.getEmail(), null);
-    user.setFirstname(this.getFirstname());
-    user.setLastname(this.getLastname());
-    user.setAddress(this.getAddress());
-    user.setPhone(this.getPhone());
-    user.setRoles(this.getRoles());
-    return user;
-}
+        UserDocument user = new UserDocument(this.getId(), this.getUsername(), this.getEmail(), null);
+        // add all other fields
+        user.setImageProfileName(this.getImageProfileName());
+        user.setFirstname(this.getFirstname());
+        user.setLastname(this.getLastname());
+        user.setAddress(this.getAddress());
+        user.setPhone(this.getPhone());
+        user.setRoles(this.getRoles());
+        return user;
+    }
 }

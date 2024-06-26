@@ -208,7 +208,7 @@ public class UserController {
     @PostMapping("/update-profile")
     public APIResponse updateProfile(@RequestBody UpdateProfileRequest updateProfileRequest) {
         APIResponse res = new APIResponse();
-        UserDocument user = userRepository.findById(updateProfileRequest.getUserId()).orElse(null);
+        UserDocument user = userRepository.findById(updateProfileRequest.getId()).orElse(null);
         if (user == null) {
             res.setStatus(400);
             res.setMessage("Error: User not found!");
@@ -252,32 +252,32 @@ public class UserController {
     }
 
     @GetMapping("/get-image-profile")
-public APIResponse getImageProfile(@RequestParam String userId) {
-    APIResponse res = new APIResponse();
-    UserDocument user = userRepository.findById(userId).orElse(null);
-    if (user == null) {
-        res.setStatus(400);
-        res.setMessage("Error: User not found!");
-    } else {
-        String directory = System.getProperty("user.dir") + "/imageProfile";
-        String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
-        File file = new File(filePath);
-        if (file.exists()) {
-            try {
-                byte[] fileContent = Files.readAllBytes(file.toPath());
-                String encodedString = Base64.getEncoder().encodeToString(fileContent);
-                res.setStatus(200);
-                res.setMessage("Image profile found!");
-                res.setData(encodedString);
-            } catch (IOException e) {
-                res.setStatus(400);
-                res.setMessage("Error: " + e.getMessage());
-            }
-        } else {
+    public APIResponse getImageProfile(@RequestParam String userId) {
+        APIResponse res = new APIResponse();
+        UserDocument user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
             res.setStatus(400);
-            res.setMessage("Error: Image profile not found!");
+            res.setMessage("Error: User not found!");
+        } else {
+            String directory = System.getProperty("user.dir") + "/imageProfile";
+            String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
+            File file = new File(filePath);
+            if (file.exists()) {
+                try {
+                    byte[] fileContent = Files.readAllBytes(file.toPath());
+                    String encodedString = Base64.getEncoder().encodeToString(fileContent);
+                    res.setStatus(200);
+                    res.setMessage("Image profile found!");
+                    res.setData(encodedString);
+                } catch (IOException e) {
+                    res.setStatus(400);
+                    res.setMessage("Error: " + e.getMessage());
+                }
+            } else {
+                res.setStatus(400);
+                res.setMessage("Error: Image profile not found!");
+            }
         }
+        return res;
     }
-    return res;
-}
 }
