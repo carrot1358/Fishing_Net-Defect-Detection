@@ -1,4 +1,4 @@
-package Project.FishingNet_thesis.payload.request;
+package Project.FishingNet_thesis.payload.request.UserCollection;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

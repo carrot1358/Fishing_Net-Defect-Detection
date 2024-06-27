@@ -3,11 +3,11 @@ package Project.FishingNet_thesis.controller;
 import Project.FishingNet_thesis.config.ConfigProperties;
 import Project.FishingNet_thesis.models.ERole;
 import Project.FishingNet_thesis.models.Role;
-import Project.FishingNet_thesis.models.TokenResetDocument;
-import Project.FishingNet_thesis.payload.request.*;
+import Project.FishingNet_thesis.models.TokenPassResetDocument;
+import Project.FishingNet_thesis.payload.request.UserCollection.*;
 import Project.FishingNet_thesis.payload.response.APIResponse;
 import Project.FishingNet_thesis.repository.RoleRepository;
-import Project.FishingNet_thesis.repository.TokenResetRepository;
+import Project.FishingNet_thesis.repository.TokenPassResetRepository;
 import Project.FishingNet_thesis.repository.UserRepository;
 import Project.FishingNet_thesis.security.service.EmailService.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +29,7 @@ public class UserController {
     @Autowired
     RoleRepository roleRepository;
     @Autowired
-    TokenResetRepository tokenResetRepository;
+    TokenPassResetRepository tokenPassResetRepository;
     @Autowired
     EmailService emailService;
     @Autowired
@@ -140,13 +140,13 @@ public class UserController {
             cal.setTime(new Date()); // sets calendar time/date
             cal.add(Calendar.MINUTE, 15); // adds 15 minutes
             Date expirationDate = cal.getTime(); // returns new date object, 15 minutes in the future
-            // Create a TokenResetDocument object and set its fields
-            TokenResetDocument tokenResetDocument = new TokenResetDocument();
-            tokenResetDocument.setToken(token);
-            tokenResetDocument.setUser(user);
-            tokenResetDocument.setExpirationDate(expirationDate);
-            // Save the TokenResetDocument object to the database
-            tokenResetRepository.save(tokenResetDocument);
+            // Create a TokenPassResetDocument object and set its fields
+            TokenPassResetDocument tokenPassResetDocument = new TokenPassResetDocument();
+            tokenPassResetDocument.setToken(token);
+            tokenPassResetDocument.setUser(user);
+            tokenPassResetDocument.setExpirationDate(expirationDate);
+            // Save the TokenPassResetDocument object to the database
+            tokenPassResetRepository.save(tokenPassResetDocument);
 
             // email the user with the reset link that includes the token
             String resetLink = configProperties.getFEbaseUrl() + "/reset-password?token=" + token;
@@ -166,15 +166,15 @@ public class UserController {
         APIResponse res = new APIResponse();
 
         // find the token in the database
-        TokenResetDocument tokenResetDocument = tokenResetRepository.findByToken(requestPass.getToken());
+        TokenPassResetDocument tokenPassResetDocument = tokenPassResetRepository.findByToken(requestPass.getToken());
         // if the token is found and it has not expired, get the user's email
-        if (tokenResetDocument != null && tokenResetDocument.getExpirationDate().after(new Date())) {
-            UserDocument user = tokenResetDocument.getUser();
+        if (tokenPassResetDocument != null && tokenPassResetDocument.getExpirationDate().after(new Date())) {
+            UserDocument user = tokenPassResetDocument.getUser();
             // update the user's password
             user.setPassword(requestPass.getNewPassword());
             userRepository.save(user);
             // delete the token from the database
-            tokenResetRepository.delete(tokenResetDocument);
+            tokenPassResetRepository.delete(tokenPassResetDocument);
             res.setStatus(200);
             res.setMessage("Password reset successfully!");
         } else {
@@ -222,6 +222,7 @@ public class UserController {
             userRepository.save(user);
             res.setStatus(200);
             res.setMessage("Profile updated successfully!");
+            res.setData(user.withoutPassword());
         }
         return res;
     }

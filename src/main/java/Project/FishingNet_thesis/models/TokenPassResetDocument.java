@@ -9,7 +9,7 @@ import java.util.Date;
 
 @Data
 @Document("token_reset_document")
-public class TokenResetDocument {
+public class TokenPassResetDocument {
     @Id
     private String token;
     private Date expirationDate;
