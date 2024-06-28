@@ -59,6 +59,7 @@ public class FishingDefectController {
         defectStatisticsDocument.addDefect_id(id);
         defectStatisticsRepository.save(defectStatisticsDocument);
     }
+
     public void increaseActivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
         DefectStatisticsDocument defectStatisticsDocument = defectStatisticsRepository.findByDate(date);
@@ -71,6 +72,7 @@ public class FishingDefectController {
         }
         defectStatisticsRepository.save(defectStatisticsDocument);
     }
+
     public void increaseDeactivateCount(Date date) {
         date = new Date(date.getYear(), date.getMonth(), 1);
         DefectStatisticsDocument defectStatisticsDocument = defectStatisticsRepository.findByDate(date);
@@ -83,6 +85,7 @@ public class FishingDefectController {
         }
         defectStatisticsRepository.save(defectStatisticsDocument);
     }
+
     public void sendToLineNotify(String lineNotifyToken, String message, File file) {
         logger.info("sendToLineNotify() called with token: {}, message: {}, file: {}", lineNotifyToken, message, file != null ? file.getName() : "null");
 
@@ -121,10 +124,13 @@ public class FishingDefectController {
             String filePath = Paths.get(directory, uuid + ".jpg").toString();
 
             // Create the directory if it does not exist
-//            File dir = new File(directory);
-//            if (!dir.exists()) {
-//                dir.mkdirs();
-//            }
+            File dir = new File(directory);
+            if (!dir.exists()) {
+                boolean isCreated = dir.mkdirs();
+                if (!isCreated) {
+                    throw new IOException("Failed to create directory " + directory);
+                }
+            }
 
             // Save the image to the directory
             File dest = new File(filePath);

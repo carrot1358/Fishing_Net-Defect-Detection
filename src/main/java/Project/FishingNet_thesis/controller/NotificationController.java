@@ -5,6 +5,7 @@ import Project.FishingNet_thesis.models.UserDocument;
 import Project.FishingNet_thesis.payload.request.NotificationCollection.AddNotificationRequest;
 import Project.FishingNet_thesis.payload.request.NotificationCollection.DelNotifyRequest;
 import Project.FishingNet_thesis.payload.request.NotificationCollection.EditNotifyRequest;
+import Project.FishingNet_thesis.payload.request.NotificationCollection.GetByUserIdRequest;
 import Project.FishingNet_thesis.payload.response.APIResponse;
 import Project.FishingNet_thesis.repository.NotificationRepository;
 import Project.FishingNet_thesis.repository.UserRepository;
@@ -79,7 +80,7 @@ public class NotificationController {
         APIResponse res = new APIResponse();
         NotificationDocument notifyDoc = notificationRepository.findByToken(editNotifyRequest.getOldNotifyToken());
         if (notifyDoc != null) {
-            if (editNotifyRequest.getNewNotifyToken().isBlank()) {
+            if (editNotifyRequest.getNewNotifyToken().equals(editNotifyRequest.getOldNotifyToken())) {
                 notifyDoc.setToken(editNotifyRequest.getOldNotifyToken());
             } else {
                 if (notificationRepository.existsByToken(editNotifyRequest.getNewNotifyToken())) {
@@ -105,15 +106,15 @@ public class NotificationController {
     }
 
     @PostMapping("/getByUserId")
-    public APIResponse getNotificationByUserId(@RequestBody String userId) {
+    public APIResponse getNotificationByUserId(@RequestBody GetByUserIdRequest getByUserIdRequest) {
         APIResponse res = new APIResponse();
-        if (userRepository.existsById(userId)) {
-            UserDocument user = userRepository.findById(userId)
+        if (userRepository.existsById(getByUserIdRequest.getUserId())) {
+            UserDocument user = userRepository.findById(getByUserIdRequest.getUserId())
                     .orElseThrow(() -> new RuntimeException("Error: User is not found."));
             res.setStatus(200);
             res.setMessage("Get Notification Success");
 //            res.setData(notificationRepository.findByUserDocument(user));
-            res.setData(notificationRepository.findByUserDocumentId(userId).stream()
+            res.setData(notificationRepository.findByUserDocumentId(getByUserIdRequest.getUserId()).stream()
                     .map(NotificationDocument::WithOutUserDocument)
                     .collect(Collectors.toList()));
         } else {
