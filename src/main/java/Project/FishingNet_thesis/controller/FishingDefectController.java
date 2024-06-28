@@ -1,12 +1,16 @@
 package Project.FishingNet_thesis.controller;
 
+import Project.FishingNet_thesis.models.NotificationDocument;
 import Project.FishingNet_thesis.payload.response.APIResponse;
 import Project.FishingNet_thesis.repository.DefectStatisticsRepository;
 import Project.FishingNet_thesis.models.DefectStatisticsDocument;
+import Project.FishingNet_thesis.repository.NotificationRepository;
+import Project.FishingNet_thesis.repository.UserRepository;
 import Project.FishingNet_thesis.security.service.websocket.handler.MyWebSocketHandler;
 import Project.FishingNet_thesis.repository.FishingDefectRepository;
 import Project.FishingNet_thesis.models.FishingDefectDocument;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
@@ -43,6 +47,34 @@ public class FishingDefectController {
     FishingDefectRepository fishingDefectRepository;
     @Autowired
     DefectStatisticsRepository defectStatisticsRepository;
+    @Autowired
+    NotificationRepository notificationRepository;
+    @Autowired
+    UserRepository userRepository;
+    @Autowired
+    ObjectMapper objectMapper;
+
+    public void managedToWebSocket(String sendTo,String status,String message,String imageId, Date date){
+        try {
+            Map<String, Object> messageMap = new HashMap<>();
+            messageMap.put("sendTo", sendTo);
+            messageMap.put("status", status);
+            messageMap.put("message", message);
+            messageMap.put("id_image", imageId);
+            messageMap.put("date", date);
+            // Convert the message to JSON
+            String messageJson = objectMapper.writeValueAsString(messageMap);
+            // Send the JSON to all clients websocket
+            Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
+            for (WebSocketSession session : sessions) {
+                if (session != null && session.isOpen()) {
+                    myWebSocketHandler.sendMessage(session, messageJson);
+                }
+            }
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public void increaseDefectCount(Date date, String id) {
         //get only year, month, day
@@ -159,18 +191,25 @@ public class FishingDefectController {
             String json = mapper.writeValueAsString(fishingDefectDocument);
 
             // Send message and image to Line Notify
-            String lineNotifyToken = "XStwsrjVcznoUDuO2eaW2BszxgeRARwWXhGIzlPzDy6";
-            String message = "New fishingNet defect uploaded: ";
-            sendToLineNotify(lineNotifyToken, message, newFile);
-
-            // Create URLs for "Activate" and "Deactivate" messages
-            String activateUrl = "http://yourserver.com/api/fishing-defect/activate?id=" + uuid;
-            String deactivateUrl = "http://yourserver.com/api/fishing-defect/deactivate?id=" + uuid;
-
-
-            // Send URLs to Line Notify
-            sendToLineNotify(lineNotifyToken, "Activate URL: " + activateUrl, null);
-            sendToLineNotify(lineNotifyToken, "Deactivate URL: " + deactivateUrl, null);
+            List<NotificationDocument> listNotify = notificationRepository.findAll();
+            for (NotificationDocument notify : listNotify) {
+                String lineNotifyToken = notify.getToken();
+                String userId = notify.getUserDocument().getId();
+                // Create URLs for "Activate" and "Deactivate" messages
+                String activateUrl = "http://yourserver.com/api/fishing-defect/activate?id=" + uuid + "&userId=" + userId;
+                String deactivateUrl = "http://yourserver.com/api/fishing-defect/deactivate?id=" + uuid + "&userId=" + userId;
+                // Send URLs to Line Notify
+                try {
+                    if (notify.getIsSendImage())
+                        sendToLineNotify(lineNotifyToken, "New fishingNet defect uploaded: ", newFile);
+                    if (notify.getIsSendLink()) {
+                        sendToLineNotify(lineNotifyToken, "Activate URL: " + activateUrl, null);
+                        sendToLineNotify(lineNotifyToken, "Deactivate URL: " + deactivateUrl, null);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error sending to Line Notify", e);
+                }
+            }
 
             // Send the JSON to all clients websocket
             Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
@@ -187,40 +226,22 @@ public class FishingDefectController {
     }
 
     @GetMapping("/activate")
-    public APIResponse activate(@RequestParam("id") String id) {
+    public APIResponse activate(@RequestParam("id") String id, @RequestParam("userId") String userId) {
         APIResponse res = new APIResponse();
         fishingDefectRepository.findById(id).ifPresent(fishingDefectDocument -> {
             if (!fishingDefectDocument.isIsmanaged()) {
                 Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                fishingDefectDocument.setUserDocument(userRepository.findById(userId).get());
                 fishingDefectDocument.setIsmanaged(true);
                 fishingDefectDocument.setStatus("Activated");
                 fishingDefectRepository.save(fishingDefectDocument);
                 increaseActivateCount(date);
-                String Message = "{" +
-                        "\"message\": \"Activated\"," +
-                        "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
-                        "}";
-                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
-                for (WebSocketSession session : sessions) {
-                    if (session != null && session.isOpen()) {
-                        myWebSocketHandler.sendMessage(session, Message);
-                    }
-                }
+
+                managedToWebSocket("frontend","success","Activated",id,date);
                 res.setStatus(0);
                 res.setMessage("Send  Activate  Success");
             } else {
-                String Mesage = "{" +
-                        "\"message\": \"This defect is already been managed.\"," +
-                        "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
-                        "}";
-                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
-                for (WebSocketSession session : sessions) {
-                    if (session != null && session.isOpen()) {
-                        myWebSocketHandler.sendMessage(session, Mesage);
-                    }
-                }
+                managedToWebSocket("frontend","error","This defect is already been managed.",id,fishingDefectDocument.getTimestamp());
                 res.setStatus(1);
                 res.setMessage("This defect is already been managed.");
 
@@ -230,40 +251,22 @@ public class FishingDefectController {
     }
 
     @GetMapping("/deactivate")
-    public APIResponse deactivate(@RequestParam("id") String id) {
+    public APIResponse deactivate(@RequestParam("id") String id, @RequestParam("userId") String userId) {
         APIResponse res = new APIResponse();
         fishingDefectRepository.findById(id).ifPresent(fishingDefectDocument -> {
             if (!fishingDefectDocument.isIsmanaged()) {
                 Date date = fishingDefectRepository.findById(id).get().getTimestamp();
+                fishingDefectDocument.setUserDocument(userRepository.findById(userId).get());
                 fishingDefectDocument.setIsmanaged(true);
                 fishingDefectDocument.setStatus("Deactivated");
                 fishingDefectRepository.save(fishingDefectDocument);
                 increaseDeactivateCount(date);
-                String Message = "{" +
-                        "\"message\": \"Deactivated\"," +
-                        "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
-                        "}";
-                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
-                for (WebSocketSession session : sessions) {
-                    if (session != null && session.isOpen()) {
-                        myWebSocketHandler.sendMessage(session, Message);
-                    }
-                }
+
+                managedToWebSocket("frontend","success","Deactivated",id,date);
                 res.setStatus(0);
                 res.setMessage("Send  Deactivated  Success");
             } else {
-                String Mesage = "{" +
-                        "\"message\": \"This defect is already been managed.\"," +
-                        "\"id_image\": \"" + id + "\"," +
-                        "\"date\": \"" + fishingDefectDocument.getTimestamp() + "\"" +
-                        "}";
-                Collection<WebSocketSession> sessions = myWebSocketHandler.getSessions();
-                for (WebSocketSession session : sessions) {
-                    if (session != null && session.isOpen()) {
-                        myWebSocketHandler.sendMessage(session, Mesage);
-                    }
-                }
+                managedToWebSocket("frontend","error","This defect is already been managed.",id,fishingDefectDocument.getTimestamp());
                 res.setStatus(1);
                 res.setMessage("This defect is already been managed.");
 
@@ -291,7 +294,6 @@ public class FishingDefectController {
 
     @GetMapping("/get_alldata")
     public APIResponse getAllData() {
-        int index = 0;
         APIResponse res = new APIResponse();
         List<FishingDefectDocument> fishingDefectdatumDocuments = fishingDefectRepository.findAll();
         for (FishingDefectDocument fishingDefectDocument : fishingDefectdatumDocuments) {
@@ -315,8 +317,8 @@ public class FishingDefectController {
     public APIResponse getLastData() {
         APIResponse res = new APIResponse();
         List<FishingDefectDocument> fishingDefectdatumDocuments = fishingDefectRepository.findAll();
-        if (fishingDefectdatumDocuments.size() > 0) {
-            FishingDefectDocument fishingDefectDocument = fishingDefectdatumDocuments.get(fishingDefectdatumDocuments.size() - 1);
+        if (!fishingDefectdatumDocuments.isEmpty()) {
+            FishingDefectDocument fishingDefectDocument = fishingDefectdatumDocuments.getLast();
             try {
                 Path path = Paths.get(fishingDefectDocument.getImage());
                 byte[] fileContent = Files.readAllBytes(path);
