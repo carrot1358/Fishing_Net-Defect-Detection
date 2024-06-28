@@ -237,6 +237,13 @@ public class UserController {
         } else {
             try {
                 String directory = System.getProperty("user.dir") + "/imageProfile";
+                File dir = new File(directory);
+                if (!dir.exists()) {
+                    boolean isCreated = dir.mkdirs(); // This line will create the directory if it does not exist
+                    if (!isCreated) {
+                        throw new IOException("Failed to create directory " + directory);
+                    }
+                }
                 String filePath = Paths.get(directory, user.getId() + ".jpg").toString();
                 File dest = new File(filePath);
                 imageProfile.transferTo(dest);
