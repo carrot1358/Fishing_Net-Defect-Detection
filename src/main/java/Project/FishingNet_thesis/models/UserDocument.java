@@ -29,7 +29,7 @@ public class UserDocument {
     private String address;
     private String phone;
     @DBRef
-    private Set<Role> roles = new HashSet<>();
+    private Set<RoleDocument> roles = new HashSet<>();
 
     public UserDocument(String id, String username, String email, String password) {
         this.id = id;

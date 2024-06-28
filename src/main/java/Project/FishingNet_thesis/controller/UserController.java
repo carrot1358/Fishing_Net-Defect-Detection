@@ -2,7 +2,7 @@ package Project.FishingNet_thesis.controller;
 
 import Project.FishingNet_thesis.config.ConfigProperties;
 import Project.FishingNet_thesis.models.ERole;
-import Project.FishingNet_thesis.models.Role;
+import Project.FishingNet_thesis.models.RoleDocument;
 import Project.FishingNet_thesis.models.TokenPassResetDocument;
 import Project.FishingNet_thesis.payload.request.UserCollection.*;
 import Project.FishingNet_thesis.payload.response.APIResponse;
@@ -72,9 +72,9 @@ public class UserController {
                 signUpRequest.getPassword());
 
         // Set user role to ROLE_ANONYMOUS
-        Role anonymousRole = roleRepository.findByName(ERole.ROLE_ANONYMOUS)
+        RoleDocument anonymousRole = roleRepository.findByName(ERole.ROLE_ANONYMOUS)
                 .orElseGet(() -> {
-                    Role role = new Role();
+                    RoleDocument role = new RoleDocument();
                     role.setName(ERole.ROLE_ANONYMOUS);
                     return roleRepository.save(role);
                 });
