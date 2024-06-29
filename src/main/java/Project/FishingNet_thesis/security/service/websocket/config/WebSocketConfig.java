@@ -10,9 +10,10 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
+
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(myWebSocketHandler(), "/ws").setAllowedOrigins("*");
+        registry.addHandler(myWebSocketHandler(), "/ws/deviceStatus").setAllowedOrigins("*");
     }
 
     @Bean
