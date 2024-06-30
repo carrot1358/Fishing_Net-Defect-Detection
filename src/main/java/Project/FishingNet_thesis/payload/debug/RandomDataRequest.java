@@ -34,7 +34,6 @@ public class RandomDataRequest {
         };
     }
 
-
     public Date getFromDate() {
         LocalDate localDate = LocalDate.of(year, defineMonth() + 1, day);
         return Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());

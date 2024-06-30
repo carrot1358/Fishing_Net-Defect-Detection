@@ -111,9 +111,26 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
             System.out.println("Received an empty message");
             return;
         }
-        // give message to all clients
-        for (WebSocketSession s : sessions.values()) {
-            sendMessage(s, message.getPayload());
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode jsonNode = mapper.readTree(message.getPayload());
+
+            // Check if the message should be sent to frontend
+            JsonNode sendToNode = jsonNode.get("sendTo");
+            if (sendToNode != null && "frontend".equals(sendToNode.asText())) {
+                // give message to all Frontend
+                for (WebSocketSession s : frontendSessions.values()) {
+                    sendMessage(s, message.getPayload());
+                }
+            } else {
+                // give message to all Device
+                for (WebSocketSession s : sessions.values()) {
+                    sendMessage(s, message.getPayload());
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

@@ -112,6 +112,29 @@ public class DebugController {
         return res;
     }
 
+    @PostMapping("/removeDefect-data-debug")
+    public APIResponse removeDefectData() {
+        APIResponse res = new APIResponse();
+        // remove all image in imageDB
+        File file = new File(System.getProperty("user.dir") + "/imageDB");
+        File[] files = file.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                boolean delSuccess = f.delete();
+                if (!delSuccess) {
+                    System.out.println("Can't delete file: " + f.getName());
+                }
+            }
+        }
+        // remove all data in database
+        fishingDefectRepository.deleteAll();
+        defectStatisticsRepository.deleteAll();
+
+        res.setStatus(0);
+        res.setMessage("Remove all defect data Success");
+        return res;
+    }
+
     @PostMapping("/random-data-debug")
     public APIResponse randomData(@RequestBody RandomDataRequest randomDataRequest) {
         APIResponse res = new APIResponse();
